@@ -41,7 +41,7 @@ graph TD
 | **Caching** | `redis/` *(Upcoming)* | `Deployment`, `Service` | `6379` | In-memory key-value cache for User sessions & Cart |
 | **Relational DB** | `mysql/` *(Upcoming)* | `Deployment`, `Service` | `3306` | Relational database for Shipping transactions & countries |
 | **Message Queue** | `rabbitmq/` *(Upcoming)* | `Deployment`, `Service` | `5672` | AMQP Message Broker for asynchronous payment dispatching |
-| **Microservice** | `catalogue/` *(Upcoming)* | `Deployment`, `Service` | `8080` | Node.js backend managing product catalog & categories |
+| **Microservice** | [`catalogue/manifest.yaml`](file:///Users/sriramcharankolla/Desktop/DevOps/k8-roboshop/catalogue/manifest.yaml) | `ConfigMap`, `Deployment`, `Service` | `8080` | Node.js backend managing product catalog & categories |
 | **Microservice** | `user/` *(Upcoming)* | `Deployment`, `Service` | `8080` | Node.js backend managing customer authentication & logins |
 | **Microservice** | `cart/` *(Upcoming)* | `Deployment`, `Service` | `8080` | Node.js backend managing items added to user shopping cart |
 | **Microservice** | `shipping/` *(Upcoming)* | `Deployment`, `Service` | `8080` | Java Spring Boot microservice calculating shipping rates & orders |
@@ -74,6 +74,22 @@ kubectl apply -f mongodb/manifest.yaml
 kubectl get deployment -n roboshop -l component=mongodb
 kubectl get pods -n roboshop -l component=mongodb -o wide
 kubectl get svc -n roboshop -l component=mongodb
+```
+
+---
+
+### 3. Deploy Backend Microservices
+
+#### Catalogue (`catalogue/manifest.yaml`)
+```bash
+# Apply Catalogue ConfigMap, Deployment, and Service
+kubectl apply -f catalogue/manifest.yaml
+
+# Verify Catalogue resources
+kubectl get configmap -n roboshop catalogue
+kubectl get deployment -n roboshop catalogue
+kubectl get pods -n roboshop -l component=catalogue
+kubectl get svc -n roboshop catalogue
 ```
 
 ---
