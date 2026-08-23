@@ -40,6 +40,33 @@ spec:
       containers:
       - name: catalogue
         image: ramcharankola2/catalogue:1.0.0
+        resources:
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+        readinessProbe:
+          # httpGet:
+          #   path: /health
+          #   port: 8080
+          tcpSocket:
+            port: 8080
+          failureThreshold: 2 # how many failures to mark as unready
+          periodSeconds: 10 # number of seconds between probes
+          initialDelaySeconds: 15 # number of seconds to wait before starting the probe
+          # successThreshold: 1 # number of successes to mark as ready
+        livenessProbe:
+          httpGet: # HTTP GET is used here because the application is exposing an HTTP endpoint
+            path: /health
+            port: 8080
+          # tcpSocket:
+          #   port: 8080 # TCP is used here because the application is listening on this port
+          failureThreshold: 2 # how many failures to mark as unready
+          periodSeconds: 10 # number of seconds between probes
+          # initialDelaySeconds: 5 # number of seconds to wait before starting the probe
+          # successThreshold: 1 # number of successes to mark as ready
         envFrom:
         - configMapRef:
             name: catalogue # reference to the configmap name defined above

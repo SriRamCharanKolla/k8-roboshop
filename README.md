@@ -53,12 +53,18 @@ graph TD
 
 ## 🚀 Deployment Instructions
 
-### 1. Create Dedicated Project Namespace
+### 1. Create Dedicated Project Namespace & Switch Context
 Always deploy the `namespace.yaml` first to isolate RoboShop resources from the `default` namespace:
 
 ```bash
+# 1. Apply Namespace
 kubectl apply -f namespace.yaml
-kubectl get namespaces
+
+# 2. Switch default namespace to 'roboshop' using kubens (Avoids typing '-n roboshop' every time!)
+kubens roboshop
+
+# Verify current active namespace
+kubens -c
 ```
 
 ---
@@ -130,3 +136,70 @@ kubectl logs -n roboshop -l component=mongodb -f
 # Verify Service Endpoints mapping
 kubectl get endpoints -n roboshop
 ```
+
+---
+
+## 🐶 `K9s` — Kubernetes Terminal UI Supercharger Guide
+
+`k9s` provides a powerful, curses-based terminal UI to interact, observe, navigate, and debug Kubernetes clusters in real time.
+
+### 1. Installation & Launching K9s
+
+```bash
+# Install k9s via webinstall or package:
+curl -sS https://webinstall.dev/k9s | bash
+
+# Launch k9s in active namespace:
+k9s
+
+# Launch directly in roboshop namespace:
+k9s -n roboshop
+
+# Launch in all namespaces:
+k9s -A
+```
+
+---
+
+### 2. Core Navigation & Resource Switching
+
+| Shortcut / Key | Mode / Action | Description |
+| :--- | :--- | :--- |
+| `Shift + :` (or `:`) | **Command Mode** | Opens command prompt at top. Type resource alias and press `Enter` |
+| `/` | **Filter / Search** | Type keyword to filter listed items in real time (e.g. `/catalogue`) |
+| `Esc` | **Back / Clear** | Go back to previous screen or clear filter |
+| `Ctrl + C` / `:q` | **Quit** | Exit K9s UI |
+| `Enter` | **Drill Down** | Inspect Pod containers, view resource details |
+
+---
+
+### 3. Popular Resource Jump Commands (`Shift + :`)
+
+| Command | Resource Type |
+| :--- | :--- |
+| `:po` / `:pods` | View **Pods** |
+| `:deploy` / `:deployments` | View **Deployments** |
+| `:svc` / `:services` | View **Services** |
+| `:cm` / `:configmaps` | View **ConfigMaps** |
+| `:sec` / `:secrets` | View **Secrets** |
+| `:ns` / `:namespaces` | View & Switch **Namespaces** |
+| `:nodes` / `:no` | View Worker **Nodes** (CPU & Memory utilization) |
+| `:ctx` / `:contexts` | Switch Kubernetes **Cluster Contexts** |
+| `:pulse` | Cluster **Health Dashboard** |
+| `:xray deploy` | Interactive **Dependency Tree** of Deployments |
+
+---
+
+### 4. Workload Actions & Debugging Shortcuts (Inside Pods/Deployments View)
+
+| Key | Action | What it does |
+| :--- | :--- | :--- |
+| `l` | **View Logs** | Opens streaming logs of the selected Pod |
+| `s` | **Shell (Exec)** | Opens an interactive `/bin/sh` or `/bin/bash` terminal inside the container (`exit` to leave) |
+| `d` | **Describe** | Shows `kubectl describe` output with events & status |
+| `e` | **Edit YAML** | Opens live YAML in Vim/Nano to edit on the fly |
+| `y` | **View YAML** | View complete YAML definition without editing |
+| `w` | **Wrap Lines** | Toggles line wrapping in log viewers |
+| `Ctrl + d` | **Delete Pod** | Deletes the selected Pod (Great to test ReplicaSet/Deployment **Self-Healing**) |
+| `Shift + f` | **Port Forward** | Maps Pod/Service port to `localhost` on your machine |
+
