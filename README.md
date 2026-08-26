@@ -139,6 +139,67 @@ kubectl get endpoints -n roboshop
 
 ---
 
+## ⚡ `kubens` & `kubectx` — Fast Namespace & Context Management
+
+Managing namespaces and clusters with standard `kubectl -n <namespace>` commands can become repetitive. `kubens` and `kubectx` provide instant switching and bash auto-completion.
+
+### 1. Installation & Shell Auto-Completion Setup
+```bash
+# Clone kubectx repository to user/system directory
+git clone https://github.com/ahmetb/kubectx.git ~/.kubectx
+
+# Create symlinks to /usr/local/bin for global CLI access
+sudo ln -sf ~/.kubectx/kubectx /usr/local/bin/kubectx
+sudo ln -sf ~/.kubectx/kubens /usr/local/bin/kubens
+
+# Setup bash autocompletion
+COMPDIR=$(pkg-config --variable=completionsdir bash-completion 2>/dev/null || echo "/etc/bash_completion.d")
+sudo mkdir -p "$COMPDIR"
+sudo ln -sf ~/.kubectx/completion/kubens.bash "$COMPDIR/kubens"
+sudo ln -sf ~/.kubectx/completion/kubectx.bash "$COMPDIR/kubectx"
+```
+
+### 2. Namespace Switching Workflow (`kubens`)
+Once configured, `kubens` sets the default namespace in your `kubeconfig` so you don't need to specify `-n roboshop` with every command:
+
+```bash
+# 1. Switch active namespace to 'roboshop':
+kubens roboshop
+# Output: Active namespace is "roboshop"
+
+# 2. Query resources without passing '-n roboshop':
+kubectl get pods       # Automatically queries pods in 'roboshop' namespace
+kubectl get svc        # Automatically queries services in 'roboshop' namespace
+kubectl get cm         # Automatically queries configmaps in 'roboshop' namespace
+
+# 3. Switch back to 'default' namespace:
+kubens default
+# Output: Active namespace is "default"
+
+# 4. Query resources in default namespace:
+kubectl get pods       # Queries 'default' namespace (No pods found if nothing is deployed in default)
+
+# 5. Switch back to 'roboshop' namespace:
+kubens roboshop
+
+# 6. Toggle back to previous namespace instantly:
+kubens -
+```
+
+### 3. Cluster Context Switching (`kubectx`)
+```bash
+# List all configured cluster contexts:
+kubectx
+
+# Switch active cluster context:
+kubectx <cluster-name>
+
+# Toggle back to previous cluster context:
+kubectx -
+```
+
+---
+
 ## 🐶 `K9s` — Kubernetes Terminal UI Supercharger Guide
 
 `k9s` provides a powerful, curses-based terminal UI to interact, observe, navigate, and debug Kubernetes clusters in real time.
