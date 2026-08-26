@@ -203,3 +203,64 @@ k9s -A
 | `Ctrl + d` | **Delete Pod** | Deletes the selected Pod (Great to test ReplicaSet/Deployment **Self-Healing**) |
 | `Shift + f` | **Port Forward** | Maps Pod/Service port to `localhost` on your machine |
 
+---
+
+## 🛠️ Kubernetes Troubleshooting & Debugging Guide
+
+### 1. Common Cluster Connection Errors
+
+#### 🔴 Error: `failed to download openapi: Get "http://localhost:8080/openapi/v2": dial tcp [::1]:8080: connect: connection refused`
+
+- **Root Cause**: `kubectl` cannot locate a valid cluster configuration file (`~/.kube/config`). By default, it falls back to querying `http://localhost:8080`, where no API server is listening.
+- **Occurrence**: Happens when newly provisioning an EC2 workstation or creating a fresh EKS cluster without updating local credentials.
+
+**Fix / Solution:**
+Update your local `kubeconfig` with credentials from AWS EKS:
+```bash
+# Update kubeconfig for your cluster (replace region and cluster name as appropriate)
+aws eks update-kubeconfig --region us-east-1 --name roboshop
+
+# Verify cluster connectivity
+kubectl get nodes
+
+# Verify current active context
+kubectl config current-context
+```
+
+---
+
+### 2. General Pod & Workload Debugging Flow
+
+When pods fail to start or services misbehave, use this systematic step-by-step approach:
+
+#### Step 1: Check Pod Status
+```bash
+kubectl get pods -n roboshop -o wide
+```
+- Look for statuses such as `CrashLoopBackOff`, `ImagePullBackOff`, `Pending`, or `Error`.
+
+#### Step 2: Inspect Events & Details (`describe`)
+```bash
+kubectl describe pod <pod-name> -n roboshop
+```
+- Check the **Events** section at the bottom to identify failures (e.g., node resource constraints, volume mount issues, failed probes, invalid image tags).
+
+#### Step 3: Inspect Logs
+```bash
+# View current logs
+kubectl logs <pod-name> -n roboshop
+
+# View logs from a previous crashed container instance
+kubectl logs <pod-name> -n roboshop --previous
+
+# Follow/stream real-time logs
+kubectl logs -f <pod-name> -n roboshop
+```
+
+#### Step 4: Shell into the Container (Exec)
+```bash
+kubectl exec -it <pod-name> -n roboshop -- /bin/sh
+```
+- Test internal connectivity (e.g., `nc -zv mongodb 27017` or `curl http://catalogue:8080/health`).
+
+

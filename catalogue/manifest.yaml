@@ -40,6 +40,7 @@ spec:
       containers:
       - name: catalogue
         image: ramcharankola2/catalogue:1.0.0
+        imagePullPolicy: Always # safe to pull everytime, there may be changes in code and image with same version rebuilt and pushed, so safe to pull
         resources:
           limits:
             cpu: "100m"
