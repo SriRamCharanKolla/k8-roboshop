@@ -1,0 +1,111 @@
+# ==============================================================================
+# 1. CONFIGMAP (Application Configuration & Environment Decoupling)
+# ==============================================================================
+# - Stores non-confidential configuration parameters in key-value format.
+# - Decouples backend hostnames and port mappings from the container image.
+# - Cart microservice uses Redis for in-memory session/cart caching and Catalogue
+#   to fetch product details and validate pricing.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cart                       # Name of the ConfigMap
+  namespace: roboshop              # Deployed in the dedicated 'roboshop' namespace
+  labels:
+    project: roboshop              # Project identifier
+    tier: backend                  # Architecture tier (backend microservice)
+    component: cart                # Microservice component name
+data:
+  REDIS_HOST: "redis"              # DNS hostname of the Redis Service in K8s
+  CATALOGUE_HOST: "catalogue"      # DNS hostname of the Catalogue Service in K8s
+  CATALOGUE_PORT: "8080"           # Port on which Catalogue service is listening
+---
+# ==============================================================================
+# 2. DEPLOYMENT (Workload Lifecycle, Self-Healing, & Pod Management)
+# ==============================================================================
+# - Manages ReplicaSets to maintain the desired number of Pod instances.
+# - Automatically handles rolling updates, restarts, and self-healing.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart                       # Deployment name
+  namespace: roboshop              # Target namespace
+  labels:
+    project: roboshop
+    tier: backend
+    component: cart
+spec:
+  replicas: 1                      # Desired number of pod instances running
+  selector:
+    matchLabels:                   # Matches labels in pod template to manage them
+      project: roboshop
+      tier: backend
+      component: cart
+  template:                        # Blueprint for creating new Cart pods
+    metadata:
+      labels:                      # Labels applied to the Pod (Matches Deployment & Service selectors)
+        project: roboshop
+        tier: backend
+        component: cart
+    spec:
+      containers:
+      - name: cart                 # Container name inside the Pod
+        image: ramcharankola2/cart:1.0.1  # Docker Hub image tag
+        imagePullPolicy: Always    # Always pull latest image tag to guarantee fresh code
+        resources:
+          limits:                  # Maximum compute resources container is allowed to consume
+            cpu: "100m"            # 100 millicores (0.1 CPU core)
+            memory: "128Mi"        # 128 Megabytes RAM
+          requests:                # Guaranteed minimum resources reserved on Worker Node
+            cpu: "100m"
+            memory: "128Mi"
+
+        # Readiness Probe:
+        # - Checks if the container is ready to accept user network traffic.
+        # - If check fails, K8s temporarily removes the Pod from Service endpoints.
+        readinessProbe:
+          tcpSocket:
+            port: 8080             # Verifies TCP handshake on port 8080
+          failureThreshold: 2      # Marks Pod unready after 2 consecutive failures
+          initialDelaySeconds: 15  # Waits 15 seconds after container startup before first check
+          periodSeconds: 10        # Checks health every 10 seconds
+
+        # Liveness Probe:
+        # - Checks if the application process is running and healthy.
+        # - If check fails, Kubernetes automatically restarts the container.
+        livenessProbe:
+          httpGet:
+            path: /health          # Executes HTTP GET request to /health endpoint
+            port: 8080
+          failureThreshold: 2      # Restarts container after 2 consecutive failures
+          initialDelaySeconds: 15  # Waits 15s after startup before first check
+          periodSeconds: 10        # Checks health every 10 seconds
+
+        # Environment Injection from ConfigMap:
+        # - Injects all key-value pairs from 'cart' ConfigMap as environment variables.
+        envFrom:
+        - configMapRef:
+            name: cart             # Points to ConfigMap defined above
+---
+# ==============================================================================
+# 3. SERVICE (Internal Networking & Stable DNS ClusterIP Endpoint)
+# ==============================================================================
+# - Provides a stable Virtual IP (ClusterIP) and internal DNS name ("cart").
+# - Load balances incoming requests across healthy Pods matching the selector.
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart                       # Service DNS Name (accessible within cluster at 'cart:8080')
+  namespace: roboshop              # Target namespace
+  labels:
+    project: roboshop
+    tier: backend
+    component: cart
+spec:
+  selector:                        # Directs incoming traffic to Pods matching these labels
+    project: roboshop
+    tier: backend
+    component: cart
+  ports:
+  - protocol: TCP                  # Connection-oriented reliable transport protocol
+    port: 8080                     # Port exposed by the Service internally
+    targetPort: 8080               # Port the application container is listening on
