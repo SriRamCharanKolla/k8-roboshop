@@ -1,0 +1,119 @@
+# ==============================================================================
+# 1. CONFIGMAP (Application Configuration & Environment Decoupling)
+# ==============================================================================
+# - Stores non-confidential configuration parameters in key-value format.
+# - Decouples database and service endpoints from the container image.
+# - Shipping microservice (Java Spring Boot) connects to MySQL to store/retrieve
+#   orders and cities data, and calls Cart microservice to validate items.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shipping                   # Name of the ConfigMap
+  namespace: roboshop              # Target Kubernetes namespace
+  labels:
+    project: roboshop              # Project identifier
+    tier: backend                  # Architecture tier (backend microservice)
+    component: shipping            # Microservice component name
+data:
+  CART_ENDPOINT: "cart:8080"       # DNS endpoint of the Cart Service in K8s
+  DB_HOST: "mysql"                 # DNS hostname of the MySQL Service in K8s
+---
+# ==============================================================================
+# 2. DEPLOYMENT (Workload Lifecycle, Self-Healing, & Pod Management)
+# ==============================================================================
+# - Manages ReplicaSets to maintain the desired number of Pod instances.
+# - Automatically handles rolling updates, restarts, and self-healing.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipping                   # Deployment name
+  namespace: roboshop              # Target namespace
+  labels:
+    project: roboshop
+    tier: backend
+    component: shipping
+spec:
+  replicas: 1                      # Desired number of pod instances running
+  selector:  
+    matchLabels:                   # Matches labels in pod template to manage them
+      project: roboshop
+      tier: backend
+      component: shipping
+  template:                        # Blueprint for creating new Shipping pods
+    metadata:
+      labels:                      # Labels applied to the Pod (Matches Deployment & Service selectors)
+        project: roboshop
+        tier: backend
+        component: shipping
+    spec:
+      containers:
+      - name: shipping             # Container name inside the Pod
+        image: ramcharankola2/shipping:1.0.1  # Docker Hub image tag
+        imagePullPolicy: Always    # Always pull latest image tag to guarantee fresh code
+        resources:
+          limits:                  # Maximum compute resources container is allowed to consume
+            cpu: "200m"            # 200 millicores (0.2 CPU core - Java Spring Boot needs higher CPU)
+            memory: "256Mi"        # 256 Megabytes RAM (Allocated for JVM heap and metaspace)
+          requests:                # Guaranteed minimum resources reserved on Worker Node
+            cpu: "200m"
+            memory: "256Mi"
+
+        # Startup Probe (Crucial for Java / Spring Boot):
+        # - Java applications take longer to start up (JVM bootstrap + class loading).
+        # - StartupProbe disables liveness and readiness checks until it succeeds.
+        # - Prevents Kubernetes from prematurely killing the slow-starting Java container.
+        startupProbe:
+          tcpSocket:
+            port: 8080             # Verifies TCP port 8080 is open
+          failureThreshold: 30     # 30 attempts * 10s = up to 300s (5 minutes) allowed for initial JVM boot
+          periodSeconds: 10        # Polls every 10 seconds
+
+        # Readiness Probe:
+        # - Checks if the container is ready to accept user network traffic.
+        # - If check fails, K8s temporarily removes the Pod from Service endpoints.
+        readinessProbe:
+          tcpSocket:
+            port: 8080             # Verifies TCP handshake on port 8080
+          failureThreshold: 2      # Marks Pod unready after 2 consecutive failures
+          initialDelaySeconds: 15  # Waits 15 seconds after startup before first check
+          periodSeconds: 10        # Checks health every 10 seconds
+
+        # Liveness Probe:
+        # - Checks if the application process is running and healthy.
+        # - If check fails, Kubernetes automatically restarts the container.
+        livenessProbe:
+          httpGet:
+            path: /health          # Executes HTTP GET request to /health endpoint
+            port: 8080
+          failureThreshold: 2      # Restarts container after 2 consecutive failures
+          periodSeconds: 10        # Checks health every 10 seconds
+
+        # Environment Injection from ConfigMap:
+        # - Injects all key-value pairs from 'shipping' ConfigMap as environment variables.
+        envFrom:
+        - configMapRef:
+            name: shipping         # Points to ConfigMap defined above
+---
+# ==============================================================================
+# 3. SERVICE (Internal Networking & Stable DNS ClusterIP Endpoint)
+# ==============================================================================
+# - Provides a stable Virtual IP (ClusterIP) and internal DNS name ("shipping").
+# - Load balances incoming requests across healthy Pods matching the selector.
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipping                   # Service DNS Name (accessible within cluster at 'shipping:8080')
+  namespace: roboshop              # Target namespace
+  labels:
+    project: roboshop
+    tier: backend
+    component: shipping
+spec:
+  selector:                        # Directs incoming traffic to Pods matching these labels
+    project: roboshop
+    tier: backend
+    component: shipping
+  ports:
+  - protocol: TCP                  # Connection-oriented reliable transport protocol
+    port: 8080                     # Port exposed by the Service internally
+    targetPort: 8080               # Port the application container is listening on
