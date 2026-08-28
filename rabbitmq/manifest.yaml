@@ -1,0 +1,79 @@
+# ==============================================================================
+# 1. CONFIGMAP (RabbitMQ Credentials & Broker Configuration)
+# ==============================================================================
+# - Stores non-confidential configuration and default credential parameters.
+# - Decouples message broker credentials from the container image.
+# - RabbitMQ official image initializes the administrative/application user
+#   using RABBITMQ_DEFAULT_USER and RABBITMQ_DEFAULT_PASS environment variables.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq                   # Name of the ConfigMap
+  namespace: roboshop              # Target Kubernetes namespace
+  labels:
+    project: roboshop              # Project identifier
+    tier: backend                  # Architecture tier (messaging/queue layer)
+    component: rabbitmq            # Message broker component
+data:
+  RABBITMQ_DEFAULT_USER: "roboshop"     # Default username for AMQP connection
+  RABBITMQ_DEFAULT_PASS: "roboshop123"  # Default password for AMQP connection
+---
+# ==============================================================================
+# 2. DEPLOYMENT (Workload Lifecycle, Self-Healing, & Pod Management)
+# ==============================================================================
+# - Manages ReplicaSets to maintain the desired number of Pod instances.
+# - Automatically handles rolling updates, restarts, and self-healing.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq                   # Deployment name
+  namespace: roboshop              # Target namespace
+  labels:
+    project: roboshop
+    tier: backend
+    component: rabbitmq
+spec:
+  replicas: 1                      # Desired number of pod instances running
+  selector:
+    matchLabels:                   # Matches labels in pod template to manage them
+      project: roboshop
+      tier: backend
+      component: rabbitmq
+  template:                        # Blueprint for creating new RabbitMQ pods
+    metadata:
+      labels:                      # Labels applied to the Pod (Matches Deployment & Service selectors)
+        project: roboshop
+        tier: backend
+        component: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq             # Container name inside the Pod
+        image: rabbitmq:3          # Official RabbitMQ Docker image (AMQP 0-9-1)
+        envFrom:
+        - configMapRef:
+            name: rabbitmq         # Injects RABBITMQ_DEFAULT_USER and PASS from ConfigMap
+---
+# ==============================================================================
+# 3. SERVICE (Internal Networking & Stable DNS ClusterIP Endpoint)
+# ==============================================================================
+# - Provides a stable Virtual IP (ClusterIP) and internal DNS name ("rabbitmq").
+# - Payment microservice connects to 'rabbitmq:5672' to publish asynchronous order events.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq                   # Service DNS Name (accessible within cluster at 'rabbitmq:5672')
+  namespace: roboshop              # Target namespace
+  labels:
+    project: roboshop
+    tier: backend
+    component: rabbitmq
+spec:
+  selector:                        # Directs incoming traffic to Pods matching these labels
+    project: roboshop
+    tier: backend
+    component: rabbitmq
+  ports:
+  # Port 5672: Standard AMQP (Advanced Message Queuing Protocol) communication port
+  - protocol: TCP                  # Connection-oriented reliable transport protocol
+    port: 5672                     # Port exposed by the Service internally
+    targetPort: 5672               # Maps to port 5672 inside RabbitMQ container
